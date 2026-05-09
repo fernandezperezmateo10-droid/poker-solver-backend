@@ -1,10 +1,21 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List
 
-app = FastAPI() # <--- ESTA ES LA LÍNEA QUE RENDER NO ENCUENTRA
+app = FastAPI()
 
-# Definimos qué datos esperamos recibir de Base44
+# --- MAGIA DEL CORS AQUÍ ---
+# Esto le dice al servidor: "Acepta peticiones de cualquier página web (Base44)"
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"], 
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+# ---------------------------
+
 class PokerState(BaseModel):
     hero_hand: List[str]
     board: List[str]
@@ -14,8 +25,6 @@ class PokerState(BaseModel):
 
 @app.post("/solve")
 async def solve_poker(state: PokerState):
-    # AQUÍ IRÁ LA LÓGICA DEL SOLVER (CFR Algorithm)
-    # Por ahora, simulamos una respuesta lógica:
     strategy = {
         "check": 0.25,
         "bet_33": 0.50,
