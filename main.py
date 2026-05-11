@@ -23,7 +23,7 @@ app.add_middleware(
 class PokerState(BaseModel):
     table_format: str
     hero_position: str
-    villain_position: str
+    villain_positions: List[str] # <--- Ahora es una lista de oponentes
     hero_hand: List[str]
     board: List[str]
     pot_size: float
@@ -36,6 +36,16 @@ class ChatRequest(BaseModel):
 
 @app.post("/solve")
 async def solve_poker(state: PokerState):
+    # Dentro de la función solve_poker o chat:
+    prompt = f"""
+    Eres un coach experto. Analiza esta mano MULTI-WAY:
+    Mesa de {state.table_format}.
+    Hero ({state.hero_position}) tiene {state.hero_hand}.
+    Se enfrenta a {len(state.villain_positions)} villanos en las posiciones: {', '.join(state.villain_positions)}.
+    Tablero: {state.board}.
+    
+    Explica brevemente la dificultad de jugar este bote contra múltiples rangos y qué precauciones debe tomar Hero.
+    """
     # Solver Matemático (Mock)
     strategy = {
         "check": 0.25,
