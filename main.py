@@ -5,15 +5,12 @@ from pydantic import BaseModel
 from typing import List
 import google.generativeai as genai
 
-# Configuración de la IA (Gemini)
-# Render inyectará la clave de forma segura sin tener que escribirla en el código
 api_key = os.getenv("GEMINI_API_KEY")
 if api_key:
     genai.configure(api_key=api_key)
 
 app = FastAPI()
 
-# Permisos CORS para Base44
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -22,7 +19,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# La nueva estructura que envía Base44
+# Estructura del estado del juego
 class PokerState(BaseModel):
     table_format: str
     hero_position: str
@@ -32,9 +29,14 @@ class PokerState(BaseModel):
     pot_size: float
     stack_size: float
 
+# NUEVA ESTRUCTURA: Para cuando el usuario hace una pregunta extra
+class ChatRequest(BaseModel):
+    question: str
+    game_context: PokerState
+
 @app.post("/solve")
 async def solve_poker(state: PokerState):
-    # 1. EL SOLVER MATEMÁTICO (Mock GTO numbers por ahora)
+    # Solver Matemático (Mock)
     strategy = {
         "check": 0.25,
         "bet_33": 0.50,
@@ -43,38 +45,41 @@ async def solve_poker(state: PokerState):
         "ev": 4.2
     }
     
-    # 2. EL COACH DE IA (Gemini)
     coach_explanation = "La IA no está configurada aún."
     
     if api_key:
         try:
-            # Elegimos el modelo rápido de Gemini
             model = genai.GenerativeModel('gemini-1.5-flash')
-            
-            # Le damos contexto de teoría de póker a la IA
-            prompt = f"""
-            Actúa como un coach profesional de póker GTO. Analiza esta situación:
-            Mesa: {state.table_format}
-            Hero está en: {state.hero_position} con las cartas {state.hero_hand}
-            Villano está en: {state.villain_position}
-            Cartas comunitarias (Board): {state.board}
-            Bote: {state.pot_size} BB. Stack efectivo: {state.stack_size} BB.
-            
-            El solver sugiere esta estrategia: Apostar pequeño 50%, Pasar 25%, Apostar grande 15%.
-            
-            En un solo párrafo corto (máximo 3 frases), explícale al jugador por qué esta estrategia 
-            tiene sentido teórico basándote en la ventaja de rango o de nuts en esta textura de mesa. 
-            Sé directo y técnico.
-            """
-            
+            prompt = f"Actúa como coach GTO. Mesa: {state.board}, Hero: {state.hero_hand} en {state.hero_position}. Explica brevemente por qué apostar tiene sentido aquí."
             response = model.generate_content(prompt)
             coach_explanation = response.text
         except Exception as e:
-            coach_explanation = "Error al consultar al Coach IA: Vuelve a intentarlo."
+            coach_explanation = "Error al consultar al Coach IA."
 
-    # 3. EMPAQUETAR Y ENVIAR A BASE44
-    return {
-        "status": "success", 
-        "data": strategy,
-        "coach_explanation": coach_explanation
-    }
+    return {"status": "success", "data": strategy, "coach_explanation": coach_explanation}
+
+# NUEVO ENDPOINT: Exclusivo para el chat interactivo
+@app.post("/chat")
+async def ask_coach(request: ChatRequest):
+    answer = "Error de IA"
+    if api_key:
+        try:
+            model = genai.GenerativeModel('gemini-1.5-flash')
+            # Le pasamos a la IA la pregunta Y el contexto de la mesa para que no se pierda
+            prompt = f"""
+            Eres un coach de póker GTO. El usuario te hace una pregunta sobre esta mano actual:
+            Mesa: {request.game_context.board}
+            Hero: {request.game_context.hero_hand} en {request.game_context.hero_position}
+            Villano: {request.game_context.villain_position}
+            Bote: {request.game_context.pot_size} BB. Stack: {request.game_context.stack_size} BB.
+            
+            Pregunta del usuario: "{request.question}"
+            
+            Responde de forma clara, directa y basándote en teoría de póker.
+            """
+            response = model.generate_content(prompt)
+            answer = response.text
+        except Exception as e:
+            answer = "Lo siento, hubo un problema al procesar tu pregunta."
+            
+    return {"status": "success", "answer": answer}
